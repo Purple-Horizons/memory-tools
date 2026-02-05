@@ -12,13 +12,31 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-// Mock embedding provider
+// Mock embedding provider with word-level similarity
+// Simulates semantic embeddings by averaging word hashes
 class MockEmbeddingProvider {
   async embed(text: string): Promise<number[]> {
-    const hash = this.hashString(text);
-    return new Array(1536).fill(0).map((_, i) =>
-      Math.sin(hash + i * 0.1) * 0.5 + 0.5
-    );
+    // Tokenize into words
+    const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+
+    // Create embedding by averaging word contributions
+    const embedding = new Array(1536).fill(0);
+
+    for (const word of words) {
+      const wordHash = this.hashString(word);
+      for (let i = 0; i < 1536; i++) {
+        embedding[i] += Math.sin(wordHash + i * 0.1) * 0.5 + 0.5;
+      }
+    }
+
+    // Normalize by word count
+    if (words.length > 0) {
+      for (let i = 0; i < 1536; i++) {
+        embedding[i] /= words.length;
+      }
+    }
+
+    return embedding;
   }
 
   async embedBatch(texts: string[]): Promise<number[][]> {
@@ -82,6 +100,31 @@ describe('Memory Tools', () => {
 
       expect(result.details.action).toBe('duplicate');
       expect(result.content[0].text).toContain('Similar memory already exists');
+    });
+
+    it('should replace memory when supersedes is provided', async () => {
+      // Store first memory
+      const first = await tools.memory_store.execute('call-1', {
+        content: 'User favorite color is blue',
+        category: 'preference',
+      });
+      expect(first.details.action).toBe('created');
+
+      // Store replacement using explicit supersedes parameter
+      const result = await tools.memory_store.execute('call-2', {
+        content: 'User favorite color is purple',
+        category: 'preference',
+        supersedes: first.details.id,
+      });
+
+      // Should replace the old memory
+      expect(result.details.action).toBe('replaced');
+      expect(result.details.supersededId).toBe(first.details.id);
+      expect(result.content[0].text).toContain('replaced previous entry');
+
+      // Old memory should be soft-deleted
+      const oldMemory = store.get(first.details.id);
+      expect(oldMemory!.deletedAt).toBeDefined();
     });
 
     it('should include tags and decay', async () => {

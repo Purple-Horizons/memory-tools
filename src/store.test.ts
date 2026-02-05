@@ -178,6 +178,32 @@ describe('MemoryStore', () => {
       expect(retrieved!.deletedAt).toBeDefined();
       expect(retrieved!.deleteReason).toBe('Test deletion');
     });
+
+    it('should delete using short ID (first 8 chars)', async () => {
+      const memory = await store.create({
+        content: 'Delete with short ID',
+        category: 'fact',
+      });
+
+      const shortId = memory.id.slice(0, 8);
+      await store.delete(shortId, 'Short ID deletion');
+
+      const retrieved = store.get(memory.id);
+      expect(retrieved!.deletedAt).toBeDefined();
+    });
+
+    it('should get using short ID (first 8 chars)', async () => {
+      const memory = await store.create({
+        content: 'Get with short ID',
+        category: 'fact',
+      });
+
+      const shortId = memory.id.slice(0, 8);
+      const retrieved = store.get(shortId);
+
+      expect(retrieved).not.toBeNull();
+      expect(retrieved!.id).toBe(memory.id);
+    });
   });
 
   describe('search', () => {

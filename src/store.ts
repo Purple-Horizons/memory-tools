@@ -152,7 +152,16 @@ export class MemoryStore {
   }
 
   get(id: string): Memory | null {
-    const row = this.db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    // Support both full UUID and short ID (first 8 chars)
+    let query = 'SELECT * FROM memories WHERE id = ?';
+    let param: string = id;
+
+    if (id.length === 8) {
+      query = 'SELECT * FROM memories WHERE id LIKE ? LIMIT 1';
+      param = `${id}%`;
+    }
+
+    const row = this.db.prepare(query).get(param) as Record<string, unknown> | undefined;
     if (!row) return null;
     return this.rowToMemory(row);
   }
@@ -205,15 +214,26 @@ export class MemoryStore {
   async delete(id: string, reason?: string): Promise<void> {
     await this.ensureVectorDb();
 
+    // Support both full UUID and short ID (first 8 chars)
+    let fullId = id;
+    if (id.length === 8) {
+      const row = this.db.prepare(
+        'SELECT id FROM memories WHERE id LIKE ? AND deleted_at IS NULL LIMIT 1'
+      ).get(`${id}%`) as { id: string } | undefined;
+      if (row) {
+        fullId = row.id;
+      }
+    }
+
     // Soft delete in SQLite
     this.db.prepare(`
       UPDATE memories
       SET deleted_at = ?, delete_reason = ?
       WHERE id = ?
-    `).run(Date.now(), reason ?? null, id);
+    `).run(Date.now(), reason ?? null, fullId);
 
     // Remove from vector index
-    await this.vectorTable!.delete(`id = '${id}'`);
+    await this.vectorTable!.delete(`id = '${fullId}'`);
   }
 
   async search(opts: SearchOptions): Promise<MemorySearchResult[]> {

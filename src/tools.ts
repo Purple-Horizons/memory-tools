@@ -80,19 +80,23 @@ WHEN NOT to use:
         },
         ctx?: { messageChannel?: string; }
       ) {
-        // Check for similar/conflicting memories (lowered threshold to catch conflicts)
-        const similar = await store.findDuplicates(params.content, 0.75);
-        if (similar.length > 0) {
+        // Handle explicit supersedes first (user knows what to replace)
+        let supersededId: string | undefined = params.supersedes;
+        if (params.supersedes) {
+          await store.delete(params.supersedes, 'superseded by new memory');
+        }
+
+        // Check for similar/conflicting memories
+        // Use low threshold (0.4) to catch potential conflicts, then decide based on score
+        const similar = await store.findDuplicates(params.content, 0.4);
+
+        if (similar.length > 0 && !params.supersedes) {
           const match = similar[0];
           const isHighSimilarity = match.score > 0.92;
           const isSameCategory = match.memory.category === params.category;
 
-          // If supersedes is specified, delete the old memory and continue
-          if (params.supersedes) {
-            await store.delete(params.supersedes, 'superseded by new memory');
-          }
-          // High similarity = likely duplicate
-          else if (isHighSimilarity) {
+          // High similarity = likely duplicate (exact same info)
+          if (isHighSimilarity) {
             return {
               content: [{
                 type: 'text' as const,
@@ -106,20 +110,11 @@ WHEN NOT to use:
               },
             };
           }
-          // Same category + moderate similarity = likely conflicting info
+          // Same category + moderate similarity = conflicting info -> AUTO-REPLACE
+          // This handles corrections like "favorite color is blue" -> "favorite color is purple"
           else if (isSameCategory && match.score > 0.5) {
-            return {
-              content: [{
-                type: 'text' as const,
-                text: `Potential conflict with existing memory: "${match.memory.content}" (${(match.score * 100).toFixed(0)}% similar). If this replaces that info, use supersedes="${match.memory.id}".`
-              }],
-              details: {
-                action: 'conflict',
-                existingId: match.memory.id,
-                existingContent: match.memory.content,
-                similarity: match.score,
-              },
-            };
+            await store.delete(match.memory.id, 'auto-superseded by updated info');
+            supersededId = match.memory.id;
           }
         }
 
@@ -133,16 +128,23 @@ WHEN NOT to use:
           sourceChannel: ctx?.messageChannel,
         });
 
+        // Build response message
+        const contentPreview = `${params.content.slice(0, 80)}${params.content.length > 80 ? '...' : ''}`;
+        const message = supersededId
+          ? `Updated: "${contentPreview}" [${params.category}] (replaced previous entry)`
+          : `Stored: "${contentPreview}" [${params.category}]`;
+
         return {
           content: [{
             type: 'text' as const,
-            text: `Stored: "${params.content.slice(0, 80)}${params.content.length > 80 ? '...' : ''}" [${params.category}]`
+            text: message,
           }],
           details: {
-            action: 'created',
+            action: supersededId ? 'replaced' : 'created',
             id: memory.id,
             category: memory.category,
             confidence: memory.confidence,
+            supersededId,
           },
         };
       },

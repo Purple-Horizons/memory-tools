@@ -39,14 +39,14 @@
         "additionalProperties": false,
         "properties": {
           "apiKey": {
-            "type": "string"
+            "type": "string",
+            "description": "OpenAI API key. Supports ${OPENAI_API_KEY} syntax or falls back to OPENAI_API_KEY env var."
           },
           "model": {
             "type": "string",
             "enum": ["text-embedding-3-small", "text-embedding-3-large"]
           }
-        },
-        "required": ["apiKey"]
+        }
       },
       "dbPath": {
         "type": "string"

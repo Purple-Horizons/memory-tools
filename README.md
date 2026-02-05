@@ -23,44 +23,81 @@ Memory-as-Tools: Agent → decides IF/WHAT to remember → uses tools explicitly
 
 ## Installation
 
+### Quick Install
+
 ```bash
-# Clone the repo
-git clone https://github.com/purple-horizons/openclaw-memory-tools.git
-cd openclaw-memory-tools
+# Clone to OpenClaw extensions directory
+git clone https://github.com/purple-horizons/openclaw-memory-tools.git ~/.openclaw/extensions/memory-tools
+cd ~/.openclaw/extensions/memory-tools
 
-# Install dependencies
-pnpm install
-
-# Build
-pnpm build
-
-# Run tests
-pnpm test
+# Install dependencies and build
+pnpm install && pnpm build
 ```
 
-## Configuration
+### Configuration
 
-Add to your OpenClaw configuration (`~/.openclaw/openclaw.json`):
+Add to `~/.openclaw/openclaw.json`:
 
 ```json
 {
   "plugins": {
+    "slots": {
+      "memory": "memory-tools"
+    },
     "entries": {
       "memory-tools": {
         "enabled": true,
-        "source": "/path/to/openclaw-memory-tools",
         "config": {
-          "embedding": {
-            "apiKey": "${OPENAI_API_KEY}",
-            "model": "text-embedding-3-small"
-          },
-          "dbPath": "~/.openclaw/memory/tools",
-          "autoInjectInstructions": true
+          "embedding": {}
         }
       }
     }
+  },
+  "tools": {
+    "alsoAllow": ["group:plugins"]
   }
 }
+```
+
+### OpenAI API Key
+
+The plugin needs an OpenAI API key for embeddings. Three options:
+
+**Option 1: Environment variable (recommended)**
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export OPENAI_API_KEY="sk-proj-..."
+```
+
+**Option 2: Reference env var in config**
+```json
+{
+  "embedding": {
+    "apiKey": "${OPENAI_API_KEY}"
+  }
+}
+```
+
+**Option 3: Direct in config (not recommended)**
+```json
+{
+  "embedding": {
+    "apiKey": "sk-proj-..."
+  }
+}
+```
+
+### Verify Installation
+
+```bash
+# Restart gateway
+openclaw gateway stop && openclaw gateway run
+
+# Check plugin loaded
+openclaw plugins list
+
+# Test CLI
+openclaw memory-tools stats
 ```
 
 ## Memory Categories

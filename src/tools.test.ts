@@ -250,19 +250,27 @@ describe('Memory Tools', () => {
     it('should return no results message', async () => {
       store.close();
 
-      // Create fresh store
-      const embeddings = new MockEmbeddingProvider() as unknown as EmbeddingProvider;
-      store = new MemoryStore(testDir + '-empty', embeddings, 1536);
-      tools = createMemoryTools(store);
+      // Create fresh store in a new directory
+      const emptyDir = path.join(os.tmpdir(), `memory-empty-test-${Date.now()}`);
+      fs.mkdirSync(emptyDir, { recursive: true });
 
-      const result = await tools.memory_search.execute('call-1', {
+      const embeddings = new MockEmbeddingProvider() as unknown as EmbeddingProvider;
+      const emptyStore = new MemoryStore(emptyDir, embeddings, 1536);
+      const emptyTools = createMemoryTools(emptyStore);
+
+      const result = await emptyTools.memory_search.execute('call-1', {
         query: 'something',
       });
 
       expect(result.details.count).toBe(0);
       expect(result.content[0].text).toBe('No relevant memories found.');
 
-      fs.rmSync(testDir + '-empty', { recursive: true, force: true });
+      emptyStore.close();
+      fs.rmSync(emptyDir, { recursive: true, force: true });
+
+      // Restore original store for other tests
+      store = new MemoryStore(testDir, embeddings, 1536);
+      tools = createMemoryTools(store);
     });
   });
 

@@ -13,7 +13,7 @@
  * - Auto-inject standing instructions at conversation start
  */
 
-import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
+import type { OpenClawPluginApi } from './plugin-types.js';
 import { Type } from '@sinclair/typebox';
 import { parseConfig } from './config.js';
 import { vectorDimsForModel, MEMORY_CATEGORIES } from './types.js';

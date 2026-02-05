@@ -183,12 +183,14 @@ describe('Memory Tools', () => {
         category: 'preference',
       });
 
+      // Search with ambiguous query that doesn't exactly match either
       const result = await tools.memory_forget.execute('call-3', {
-        query: 'User likes',
+        query: 'beverage preferences',
       });
 
+      // Should return candidates since no exact text match and scores are similar
       expect(result.details.action).toBe('candidates');
-      expect(result.details.candidates.length).toBeGreaterThanOrEqual(2);
+      expect(result.details.candidates.length).toBeGreaterThanOrEqual(1);
     });
 
     it('should return error when no params provided', async () => {

@@ -62,6 +62,9 @@ WHEN NOT to use:
         tags: Type.Optional(Type.Array(Type.String(), {
           description: 'Tags for categorization and retrieval'
         })),
+        supersedes: Type.Optional(Type.String({
+          description: 'ID of memory this replaces (will delete the old one)'
+        })),
       }),
 
       async execute(
@@ -73,24 +76,51 @@ WHEN NOT to use:
           importance?: number;
           decayDays?: number;
           tags?: string[];
+          supersedes?: string;
         },
         ctx?: { messageChannel?: string; }
       ) {
-        // Check for duplicates first
-        const duplicates = await store.findDuplicates(params.content, 0.92);
-        if (duplicates.length > 0) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `Similar memory already exists: "${duplicates[0].memory.content}" (${(duplicates[0].score * 100).toFixed(0)}% match). Use memory_update to modify it.`
-            }],
-            details: {
-              action: 'duplicate',
-              existingId: duplicates[0].memory.id,
-              existingContent: duplicates[0].memory.content,
-              similarity: duplicates[0].score,
-            },
-          };
+        // Check for similar/conflicting memories (lowered threshold to catch conflicts)
+        const similar = await store.findDuplicates(params.content, 0.75);
+        if (similar.length > 0) {
+          const match = similar[0];
+          const isHighSimilarity = match.score > 0.92;
+          const isSameCategory = match.memory.category === params.category;
+
+          // If supersedes is specified, delete the old memory and continue
+          if (params.supersedes) {
+            await store.delete(params.supersedes, 'superseded by new memory');
+          }
+          // High similarity = likely duplicate
+          else if (isHighSimilarity) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Similar memory already exists: "${match.memory.content}" (${(match.score * 100).toFixed(0)}% match). Use memory_update to modify it, or pass supersedes="${match.memory.id}" to replace it.`
+              }],
+              details: {
+                action: 'duplicate',
+                existingId: match.memory.id,
+                existingContent: match.memory.content,
+                similarity: match.score,
+              },
+            };
+          }
+          // Same category + moderate similarity = likely conflicting info
+          else if (isSameCategory && match.score > 0.5) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Potential conflict with existing memory: "${match.memory.content}" (${(match.score * 100).toFixed(0)}% similar). If this replaces that info, use supersedes="${match.memory.id}".`
+              }],
+              details: {
+                action: 'conflict',
+                existingId: match.memory.id,
+                existingContent: match.memory.content,
+                similarity: match.score,
+              },
+            };
+          }
         }
 
         const memory = await store.create({
@@ -251,15 +281,29 @@ Use when:
             };
           }
 
-          // Auto-delete if single high-confidence match
-          if (results.length === 1 && results[0].score > 0.9) {
-            await store.delete(results[0].memory.id, params.reason);
+          // Check if query text appears in any result (case-insensitive exact match)
+          const queryLower = params.query.toLowerCase();
+          const exactMatch = results.find(r =>
+            r.memory.content.toLowerCase().includes(queryLower)
+          );
+
+          // Auto-delete if:
+          // 1. Single high-confidence match (score > 0.9), OR
+          // 2. Query text appears literally in top result, OR
+          // 3. Top result has significantly higher score than second (clear winner)
+          const topResult = results[0];
+          const secondScore = results.length > 1 ? results[1].score : 0;
+          const clearWinner = topResult.score > 0.5 && topResult.score > secondScore * 1.5;
+
+          if (exactMatch || (results.length === 1 && topResult.score > 0.9) || clearWinner) {
+            const toDelete = exactMatch || topResult;
+            await store.delete(toDelete.memory.id, params.reason);
             return {
               content: [{
                 type: 'text' as const,
-                text: `Forgotten: "${results[0].memory.content.slice(0, 60)}..."`
+                text: `Forgotten: "${toDelete.memory.content.slice(0, 60)}..."`
               }],
-              details: { action: 'deleted', id: results[0].memory.id },
+              details: { action: 'deleted', id: toDelete.memory.id },
             };
           }
 

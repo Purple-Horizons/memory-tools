@@ -60,6 +60,6 @@
         "default": 24
       }
     },
-    "required": ["embedding"]
+    "required": []
   }
 }

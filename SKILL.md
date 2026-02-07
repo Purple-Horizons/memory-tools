@@ -61,9 +61,11 @@ openclaw gateway restart
 
 **Docker (no systemd):**
 ```bash
-# Hard restart required on first install
+# Kill existing gateway
 pkill -f openclaw-gateway
-# Gateway auto-restarts via container supervisor
+
+# Start in background
+nohup openclaw gateway --port 18789 --verbose > /tmp/openclaw-gateway.log 2>&1 &
 ```
 
 ### Requirements

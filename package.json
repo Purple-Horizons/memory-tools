@@ -1,6 +1,6 @@
 {
   "name": "memory-tools",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Memory-as-Tools plugin for OpenClaw - Agent-controlled persistent memory with QMD-powered search",
   "type": "module",
   "main": "dist/index.js",
@@ -16,10 +16,6 @@
   "dependencies": {
     "@sinclair/typebox": "0.34.48",
     "sql.js": "^1.13.0"
-  },
-  "optionalDependencies": {
-    "@lancedb/lancedb": "^0.23.0",
-    "openai": "^6.17.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
